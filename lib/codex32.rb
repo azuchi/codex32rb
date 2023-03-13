@@ -65,7 +65,7 @@ module Codex32
   def bech32_to_array(bech32_str)
     bech32_str.downcase.each_char.map do |c|
       i = CHARSET.index(c)
-      # raise ArgumentError, "#{c} is an invalid bech32 character." if i.nil?
+      raise ArgumentError, "#{c} is an invalid bech32 character." if i.nil?
       i
     end
   end
