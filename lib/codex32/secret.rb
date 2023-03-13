@@ -10,14 +10,6 @@ module Codex32
       INDEX
     end
 
-    # Decode payload as secret.
-    # @return [String] A secret with hex format.
-    def secret
-      convert_bits(bech32_to_array(payload), 5, 8, padding: false).pack(
-        "C*"
-      ).unpack1("H*")
-    end
-
     def share?
       false
     end

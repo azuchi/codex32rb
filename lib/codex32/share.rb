@@ -14,9 +14,6 @@ module Codex32
       unless CHARSET.include?(index.downcase)
         raise ArgumentError, "Invalid index character specified."
       end
-      if index.downcase == Secret::INDEX
-        raise ArgumentError, "s is secret index."
-      end
       unless threshold.zero? || (threshold > 1 && threshold < 10)
         raise ArgumentError,
               "The threshold value must be 0 or a number between 2 and 9."

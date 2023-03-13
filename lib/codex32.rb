@@ -17,6 +17,10 @@ module Codex32
   # stree-ignore
   CHARSET = %w[q p z r y 9 x 8 g f 2 t v d w 0 s 3 j n 5 4 k h c e 6 m u a 7 l].freeze
 
+  # stree-ignore
+  BECH32_INV = [0, 1, 20, 24, 10, 8, 12, 29, 5, 11, 4, 9, 6, 28, 26, 31,
+                22, 18, 17, 23, 2, 25, 16, 19, 3, 21, 14, 30, 13, 7, 27, 15].freeze
+
   MS32_CONST = 0x10ce0795c2fd1e62a
 
   module_function
@@ -26,7 +30,7 @@ module Codex32
   # @return [Codex32::Share | Codex32::Secret]
   # @raise [ArgumentError]
   def parse(codex32)
-    hrp, remain = codex32.split(SEPARATOR)
+    hrp, remain = codex32.downcase.split(SEPARATOR)
     if remain.nil?
       raise ArgumentError, "codex32 string dose not include separator."
     end
@@ -59,11 +63,44 @@ module Codex32
   # @return [Array(Integer)] array of bech32 data.
   # @raise ArgumentError
   def bech32_to_array(bech32_str)
-    bech32_str.each_char.map do |c|
+    bech32_str.downcase.each_char.map do |c|
       i = CHARSET.index(c)
       # raise ArgumentError, "#{c} is an invalid bech32 character." if i.nil?
       i
     end
+  end
+
+  # Recover secret using +shares+.
+  # @param [Array(Codex32::Share)] shares Array of share.
+  # @return [Codex32::Share] Recovery secret.
+  def recover_secret(shares)
+    raise ArgumentError, "shares must be array." unless shares.is_a?(Array)
+    unless shares.map(&:id).uniq.length == 1
+      raise ArgumentError, "Share ids does not match."
+    end
+    unless shares.map(&:threshold).uniq.length == 1
+      raise ArgumentError, "Share threshold does not match."
+    end
+    unless shares.map(&:index).uniq.length == shares.length
+      raise ArgumentError, "Share index duplicate."
+    end
+    if shares.length < shares[0].threshold
+      raise ArgumentError, "The number of shares does not meet the threshold."
+    end
+
+    data =
+      shares.map do |share|
+        bech32_to_array(
+          share.threshold.to_s + share.id + share.index + share.payload
+        )
+      end
+    result = interpolate(data)
+    Share.new(
+      shares.first.id,
+      shares.first.threshold,
+      CHARSET[result[5]],
+      array_to_bech32(result[6..])
+    )
   end
 
   # Convert array to bech32 string.
@@ -116,5 +153,37 @@ module Codex32
     end
     ret << ((acc << (to - bits)) & maxv) if padding && bits != 0
     ret
+  end
+
+  def interpolate(data)
+    indices = data.map { |d| d[5] }
+    w = bech32_lagrange(indices, 16)
+    data.first.length.times.map do |i|
+      n = 0
+      data.length.times { |j| n ^= bech32_mul(w[j], data[j][i]) }
+      n
+    end
+  end
+
+  def bech32_lagrange(data, x)
+    n = 1
+    c = []
+    data.each do |i|
+      n = bech32_mul(n, i ^ x)
+      m = 1
+      data.each { |j| m = bech32_mul(m, (i == j ? x : i) ^ j) }
+      c << m
+    end
+    c.map { |i| bech32_mul(n, BECH32_INV[i]) }
+  end
+
+  def bech32_mul(a, b)
+    result = 0
+    5.times do |i|
+      result ^= ((b >> i) & 1).zero? ? 0 : a
+      a *= 2
+      a ^= a >= 32 ? 41 : 0
+    end
+    result
   end
 end

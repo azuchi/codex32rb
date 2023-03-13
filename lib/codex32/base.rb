@@ -20,6 +20,14 @@ module Codex32
       array_to_bech32(result)
     end
 
+    # Return decoded payload.
+    # @return [String] Decoded payload.
+    def data
+      convert_bits(bech32_to_array(payload), 5, 8, padding: false).pack(
+        "C*"
+      ).unpack1("H*")
+    end
+
     def index
       raise NotImplementedError
     end
@@ -34,6 +42,12 @@ module Codex32
 
     def threshold
       raise NotImplementedError
+    end
+
+    # Return bech32 string.
+    # @return [String]
+    def to_s
+      HRP + SEPARATOR + content + checksum
     end
 
     private

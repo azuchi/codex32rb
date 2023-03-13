@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 RSpec.describe Codex32 do
-  describe "Test Vector1" do
+  describe "Test Vector 1" do
     it do
       secret =
         described_class.parse(
@@ -13,7 +13,25 @@ RSpec.describe Codex32 do
       expect(secret.share?).to be false
       expect(secret.checksum).to eq("4nzvca9cmczlw")
       expect(secret.index).to eq("s")
-      expect(secret.secret).to eq("318c6318c6318c6318c6318c6318c631")
+      expect(secret.data).to eq("318c6318c6318c6318c6318c6318c631")
+    end
+  end
+
+  describe "Test Vector 2" do
+    it do
+      share1 =
+        described_class.parse(
+          "MS12NAMEA320ZYXWVUTSRQPNMLKJHGFEDCAXRPP870HKKQRM"
+        )
+      share2 =
+        described_class.parse(
+          "MS12NAMECACDEFGHJKLMNPQRSTUVWXYZ023FTR2GDZMPY6PN"
+        )
+      secret = described_class.recover_secret([share1, share2])
+      expect(secret.data).to eq("d1808e096b35b209ca12132b264662a5")
+      expect(secret.to_s).to eq(
+        "MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW".downcase
+      )
     end
   end
 end
