@@ -19,3 +19,5 @@ Naming/MethodParameterName:
   Enabled: false
 RSpec/FilePath:
   Enabled: false
+RSpec/MultipleExpectations:
+  Enabled: false
