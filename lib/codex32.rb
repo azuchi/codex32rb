@@ -27,7 +27,7 @@ module Codex32
 
   # Parse codex32 string.
   # @param [String] codex32 Codex32 string
-  # @return [Codex32::Share | Codex32::Secret]
+  # @return [Codex32::Share|Codex32::Secret]
   # @raise [ArgumentError]
   def parse(codex32)
     hrp, remain = codex32.downcase.split(SEPARATOR)
@@ -35,6 +35,9 @@ module Codex32
       raise ArgumentError, "codex32 string dose not include separator."
     end
     raise ArgumentError, "Invalid hrp specified." unless hrp.downcase == HRP
+    unless valid_checksum?(bech32_to_array(remain))
+      raise ArgumentError, "The checksum is incorrect."
+    end
 
     remain = remain.chars
     threshold = remain[0].to_i
@@ -42,20 +45,11 @@ module Codex32
     share_index = remain[5]
     payload_end = remain.length - 13
     payload = remain[6...payload_end].join
-    checksum = remain[-13..].join
-    result =
-      if share_index == Secret::INDEX
-        if threshold != 0
-          raise ArgumentError, "The threshold value of the secret must be zero."
-        end
-        Secret.new(id, payload)
-      else
-        Share.new(id, threshold, share_index, payload)
-      end
-    unless checksum == result.checksum
-      raise ArgumentError, "The checksum is incorrect."
+    if share_index == Secret::INDEX
+      Secret.new(id, payload)
+    else
+      Share.new(id, threshold, share_index, payload)
     end
-    result
   end
 
   # Convert bech32 string to array.
@@ -176,6 +170,13 @@ module Codex32
       data.length.times { |j| n ^= bech32_mul(w[j], data[j][i]) }
       n
     end
+  end
+
+  # Check whether checksum is valid or not.
+  # @param [Array(Integer)] data A part as a list of integers representing the characters converted.
+  # @return [Boolean]
+  def valid_checksum?(data)
+    polymod(data) == MS32_CONST
   end
 
   def bech32_lagrange(data, x)
