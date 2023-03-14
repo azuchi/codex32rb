@@ -11,8 +11,6 @@ module Codex32
     # @param [String] index Share index.
     # @param [String] payload Share payload.
     def initialize(id, threshold, index, payload)
-      @id = id
-      @payload = payload
       unless CHARSET.include?(index.downcase)
         raise ArgumentError, "Invalid index character specified."
       end
@@ -20,8 +18,9 @@ module Codex32
         raise ArgumentError,
               "The threshold value must be 0 or a number between 2 and 9."
       end
-
-      @index = index
+      @id = id.downcase
+      @payload = payload.downcase
+      @index = index.downcase
       @threshold = threshold
     end
 
