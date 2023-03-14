@@ -40,11 +40,13 @@ module Codex32
       raise ArgumentError, "The checksum is incorrect."
     end
 
+    checksum_len = remain.chars.length <= 93 ? 13 : 15
+
     remain = remain.chars
     threshold = remain[0].to_i
     id = remain[1..4].join
     share_index = remain[5]
-    payload_end = remain.length - 13
+    payload_end = remain.length - checksum_len
     payload = remain[6...payload_end].join
     Share.new(id, threshold, share_index, payload)
   end

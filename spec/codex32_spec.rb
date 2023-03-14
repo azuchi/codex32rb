@@ -112,4 +112,18 @@ RSpec.describe Codex32 do
       end
     end
   end
+
+  describe "Test Vector 5" do
+    it do
+      # rubocop:disable Layout/LineLength
+      secret =
+        described_class.parse(
+          "MS100C8VSM32ZXFGUHPCHTLUPZRY9X8GF2TVDW0S3JN54KHCE6MUA7LQPZYGSFJD6AN074RXVCEMLH8WU3TK925ACDEFGHJKLMNPQRSTUVWXY06FHPV80UNDVARHRAK"
+        )
+      expect(secret.data).to eq(
+        "dc5423251cb87175ff8110c8531d0952d8d73e1194e95b5f19d6f9df7c01111104c9baecdfea8cccc677fb9ddc8aec5553b86e528bcadfdcc201c17c638c47e9"
+      )
+      # rubocop:enable Layout/LineLength
+    end
+  end
 end
