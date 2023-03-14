@@ -1,8 +1,6 @@
 # frozen_string_literal: true
 
 require_relative "codex32/version"
-require_relative "codex32/base"
-require_relative "codex32/secret"
 require_relative "codex32/share"
 
 # Codex32 library.
@@ -23,11 +21,13 @@ module Codex32
 
   MS32_CONST = 0x10ce0795c2fd1e62a
 
+  SECRET_INDEX = "s"
+
   module_function
 
   # Parse codex32 string.
   # @param [String] codex32 Codex32 string
-  # @return [Codex32::Share|Codex32::Secret]
+  # @return [Codex32::Share]
   # @raise [ArgumentError]
   def parse(codex32)
     hrp, remain = codex32.downcase.split(SEPARATOR)
@@ -45,11 +45,7 @@ module Codex32
     share_index = remain[5]
     payload_end = remain.length - 13
     payload = remain[6...payload_end].join
-    if share_index == Secret::INDEX
-      Secret.new(id, payload)
-    else
-      Share.new(id, threshold, share_index, payload)
-    end
+    Share.new(id, threshold, share_index, payload)
   end
 
   # Convert bech32 string to array.
@@ -73,7 +69,9 @@ module Codex32
     unless shares.map(&:id).uniq.length == 1
       raise ArgumentError, "Share ids does not match."
     end
-    unless shares.map(&:threshold).uniq.length == 1
+    threshold = shares.map(&:threshold).uniq
+    threshold.delete(0)
+    unless threshold.length == 1
       raise ArgumentError, "Share threshold does not match."
     end
     index = CHARSET.index(share_index.downcase)
@@ -99,7 +97,7 @@ module Codex32
     result = interpolate_at(data, index)
     Share.new(
       shares.first.id,
-      shares.first.threshold,
+      threshold.first,
       CHARSET[result[5]],
       array_to_bech32(result[6..])
     )

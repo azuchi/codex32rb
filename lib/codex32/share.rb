@@ -2,15 +2,17 @@
 
 module Codex32
   # Codex32 share class.
-  class Share < Base
-    attr_reader :index, :threshold
+  class Share
+    include Codex32
+    attr_reader :id, :payload, :index, :threshold
 
     # @param [String] id Identifier of this share.
     # @param [Integer] threshold Threshold.
     # @param [String] index Share index.
     # @param [String] payload Share payload.
     def initialize(id, threshold, index, payload)
-      super(id, payload)
+      @id = id
+      @payload = payload
       unless CHARSET.include?(index.downcase)
         raise ArgumentError, "Invalid index character specified."
       end
@@ -23,12 +25,33 @@ module Codex32
       @threshold = threshold
     end
 
-    def share?
-      true
+    # Calculate checksum.
+    # @return [String]
+    def checksum
+      data = bech32_to_array(content)
+      poly_value = polymod(data + [0] * 13) ^ MS32_CONST
+      result = 13.times.map { |i| (poly_value >> 5 * (12 - i)) & 31 }
+      array_to_bech32(result)
     end
 
-    def secret?
-      false
+    # Return decoded payload.
+    # @return [String] Decoded payload.
+    def data
+      convert_bits(bech32_to_array(payload), 5, 8, padding: false).pack(
+        "C*"
+      ).unpack1("H*")
+    end
+
+    # Return bech32 string.
+    # @return [String]
+    def to_s
+      HRP + SEPARATOR + content + checksum
+    end
+
+    private
+
+    def content
+      threshold.to_s + id + index + payload
     end
   end
 end
