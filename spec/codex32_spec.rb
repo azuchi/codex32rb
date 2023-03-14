@@ -126,4 +126,151 @@ RSpec.describe Codex32 do
       # rubocop:enable Layout/LineLength
     end
   end
+
+  describe "Invalid Test Vector" do
+    context "when incorrect checksum" do
+      it do
+        # rubocop:disable Layout/LineLength
+        targets = %w[
+          ms10testsxxxxxxxxxxxxxxxxxxxxxxxxxxxxmazxdp4sx5q
+          ms10testsxxxxxxxxxxxxxxxxxxxxxxxxxxxq70v3y94304t
+          ms10testsxxxxxxxxxxxxxxxxxxxxxxxxxxxxg4m2aylswft
+          ms10testsxxxxxxxxxxxxxxxxxxxxxxxxxxxxght46zhq0x4
+          ms10testsxxxxxxxxxxxxxxxxxxxxxxxxxxxl8jqrdhvqkc4
+          ms10testsxxxxxxxxxxxxxxxxxxxxxxxxxxxxepvjkxnc9wu
+          ms10testsxxxxxxxxxxxxxxxxxxxxxxxxxxxxcakee32853f
+          ms10testsxxxxxxxxxxxxxxxxxxxxxxxxxxx4nknfgj6u67a
+          ms10testsxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx3n5n5gyweuvq3
+          ms10testsxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxjqllfg3pf3fv4
+          ms10testsxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxn0c66xf2j0kjn
+          ms10testsxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxh73jw8glx8fpk
+          ms10testsyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyymjljntsznrq3mv
+          ms10testsxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx0p99y5vsmt84t
+          ms10testsxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxj4r3qrklkmtsz
+          ms10testsxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx8kp950klmrlsm
+        ]
+        # rubocop:enable Layout/LineLength
+        targets.each do |t|
+          expect { described_class.parse(t) }.to raise_error(
+            Codex32::Errors::InvalidChecksum
+          )
+        end
+      end
+    end
+
+    context "when invalid length checksum" do
+      it do
+        # rubocop:disable Layout/LineLength
+        invalid_checksums = %w[
+          ms10testsxxxxxxxxxxxxxxxxxxxxxxxx372x3mkc5m8sa0q
+          ms10testsxxxxxxxxxxxxxxxxxxxxxxxxxx82zvxjc02rt0vnl
+          ms10testsxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxyc57nnpvpcnhggt
+          ms10testsxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxf9e2wxsusjgmlws
+          ms10testsxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxdpu39xl2lkru3g4
+          ms10testsxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxqelpaxwk0jz4e
+          ms10testsxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxncdn5kjxq7grt
+          ms10testsxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxhq00y08vc7gjg
+          ms10testsxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxdckj6wn4z7r3p
+          ms10testsxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxjl32g6u3wgg8j
+        ]
+        invalid_lengths = %w[
+          ms10testsxxxxxxxxxxxxxxxxxxxxxxxx8ty2gx0n6rnaa
+          ms10testsxxxxxxxxxxxxxxxxxxxxxxxxxus2h522w7u6vq
+          ms10testsxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxpsx45vtf9n2uk5h
+          ms12testxxxxxxxxxxxxxxxxxxxxxxxxxtn5jkk94ayuqc
+          ms12testxxxxxxxxxxxxxxxxxxxxxxxxxxvspjygypsrrkl
+          ms12testxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxcpkhsxdrp05hymv
+        ]
+        # rubocop:enable Layout/LineLength
+        invalid_checksums.each do |t|
+          expect { described_class.parse(t) }.to raise_error(
+            Codex32::Errors::InvalidChecksum
+          )
+        end
+        invalid_lengths.each do |t|
+          expect { described_class.parse(t) }.to raise_error(
+            Codex32::Errors::InvalidLength
+          )
+        end
+      end
+    end
+
+    context "when invalid improper length" do
+      it do
+        # rubocop:disable Layout/LineLength
+        targets = %w[
+          ms10testsxxxxxxxxxxxxxxxxxxxxxxxxxxxc8d60uanwukvn
+          ms10testsxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxwaaaq5yk0vfeg
+          ms10testsxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxu9cfgk0a4muxaam
+          ms10testsxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxzu2kdncfaew65ae
+          ms12testxxxxxxxxxxxxxxxxxxxxxxxxxxxxqmufxffdkzfac
+          ms12testxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxmgr4z3c807ml7
+          ms12testxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx4q3s54t8ejm8dfj
+          ms12testxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxr0wzwtfvgh3th2
+        ]
+        # rubocop:enable Layout/LineLength
+        targets.each do |t|
+          expect { described_class.parse(t) }.to raise_error(
+            Codex32::Errors::IncompleteGroup
+          )
+        end
+      end
+    end
+
+    context 'when "0" threshold with a non-"s" index' do
+      it do
+        target = "ms10testxxxxxxxxxxxxxxxxxxxxxxxxxxxx3wq9mzgrwag9"
+        expect { described_class.parse(target) }.to raise_error(
+          Codex32::Errors::InvalidShareIndex
+        )
+      end
+    end
+
+    context "when a threshold that is not a digit" do
+      it do
+        target = "ms1testxxxxxxxxxxxxxxxxxxxxxxxxxxxxs9lz3we7s9wh4"
+        expect { described_class.parse(target) }.to raise_error(
+          Codex32::Errors::InvalidThreshold
+        )
+      end
+    end
+
+    context 'when do not begin with the required "ms" or "MS" prefix and/or are missing the "1" separator' do
+      it do
+        targets = %w[
+          0testsxxxxxxxxxxxxxxxxxxxxxxxxxx4nzvca9cmczlw
+          10testsxxxxxxxxxxxxxxxxxxxxxxxxxx4nzvca9cmczlw
+          mstestsxxxxxxxxxxxxxxxxxxxxxxxxxx4nzvca9cmczlw
+          m10testsxxxxxxxxxxxxxxxxxxxxxxxxxx4nzvca9cmczlw
+          s10testsxxxxxxxxxxxxxxxxxxxxxxxxxx4nzvca9cmczlw
+          0testsxxxxxxxxxxxxxxxxxxxxxxxxxx79f08v7ucwmh5
+          10testsxxxxxxxxxxxxxxxxxxxxxxxxxx79f08v7ucwmh5
+          m10testsxxxxxxxxxxxxxxxxxxxxxxxxxxwcwavvypcxrvm
+          s10testsxxxxxxxxxxxxxxxxxxxxxxxxxx7kf489ztk44gz
+        ]
+        targets.each do |t|
+          expect { described_class.parse(t) }.to raise_error(
+            Codex32::Errors::InvalidHRP
+          )
+        end
+      end
+    end
+
+    context "when invalid case" do
+      it do
+        targets = %w[
+          MS10testsxxxxxxxxxxxxxxxxxxxxxxxxxx4nzvca9cmczlw
+          ms10TESTsxxxxxxxxxxxxxxxxxxxxxxxxxx4nzvca9cmczlw
+          ms10testSxxxxxxxxxxxxxxxxxxxxxxxxxx4nzvca9cmczlw
+          ms10testsXXXXXXXXXXXXXXXXXXXXXXXXXX4nzvca9cmczlw
+          ms10testsxxxxxxxxxxxxxxxxxxxxxxxxxx4NZVCA9CMCZLW
+        ]
+        targets.each do |t|
+          expect { described_class.parse(t) }.to raise_error(
+            Codex32::Errors::InvalidCase
+          )
+        end
+      end
+    end
+  end
 end

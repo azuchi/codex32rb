@@ -12,16 +12,24 @@ module Codex32
     # @param [String] payload Share payload.
     def initialize(id, threshold, index, payload)
       unless CHARSET.include?(index.downcase)
-        raise ArgumentError, "Invalid index character specified."
+        raise Codex32::Errors::InvalidBech32Character
       end
       unless threshold.zero? || (threshold > 1 && threshold < 10)
-        raise ArgumentError,
-              "The threshold value must be 0 or a number between 2 and 9."
+        raise Codex32::Errors::InvalidThreshold
       end
       @id = id.downcase
       @payload = payload.downcase
       @index = index.downcase
       @threshold = threshold
+
+      if threshold.zero? && index != SECRET_INDEX
+        raise Codex32::Errors::InvalidShareIndex
+      end
+
+      incomplete_group = payload.length * 5 % 8
+      return unless incomplete_group > 4
+      raise Codex32::Errors::IncompleteGroup,
+            "Incomplete group #{incomplete_group}"
     end
 
     # Calculate checksum.

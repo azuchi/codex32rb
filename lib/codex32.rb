@@ -1,13 +1,11 @@
 # frozen_string_literal: true
 
 require_relative "codex32/version"
+require_relative "codex32/errors"
 require_relative "codex32/share"
 
 # Codex32 library.
 module Codex32
-  class Error < StandardError
-  end
-
   HRP = "ms"
 
   SEPARATOR = "1"
@@ -29,21 +27,23 @@ module Codex32
   # Parse codex32 string.
   # @param [String] codex32 Codex32 string
   # @return [Codex32::Share]
-  # @raise [ArgumentError]
   def parse(codex32)
-    hrp, remain = codex32.downcase.split(SEPARATOR)
-    if remain.nil?
-      raise ArgumentError, "codex32 string dose not include separator."
+    if codex32.downcase != codex32 && codex32.upcase != codex32
+      raise Errors::InvalidCase
     end
-    raise ArgumentError, "Invalid hrp specified." unless hrp.downcase == HRP
+    hrp, remain = codex32.downcase.split(SEPARATOR)
+    raise Errors::InvalidHRP unless hrp.downcase == HRP
+    raise Errors::InvalidLength if codex32.length < 48 || codex32.length > 127
+    raise Errors::SeparatorNotFound if remain.nil?
     unless valid_checksum?(bech32_to_array(remain))
-      raise ArgumentError, "The checksum is incorrect."
+      raise Errors::InvalidChecksum
     end
 
     checksum_len = remain.chars.length <= 93 ? 13 : 15
 
     remain = remain.chars
     threshold = remain[0].to_i
+    raise Errors::InvalidThreshold unless threshold.to_s == remain[0]
     id = remain[1..4].join
     share_index = remain[5]
     payload_end = remain.length - checksum_len
@@ -58,14 +58,9 @@ module Codex32
   # @param [String] share_index Index of share.
   # @return [Codex32::Share]
   def from(seed:, id:, share_index:, threshold: 0)
-    unless threshold.is_a?(Integer)
-      raise ArgumentError, "threshold must be integer."
-    end
-    raise ArgumentError, "id must be 4 characters." unless id.length == 4
-    if CHARSET.index(share_index).nil?
-      raise ArgumentError, "Invalid share_index specified."
-    end
-
+    raise Errors::InvalidThreshold unless threshold.is_a?(Integer)
+    raise Errors::InvalidIdentifier unless id.length == 4
+    raise Errors::InvalidBech32Character if CHARSET.index(share_index).nil?
     payload =
       array_to_bech32(
         convert_bits([seed].pack("H*").unpack("C*"), 8, 5, padding: true)
@@ -76,11 +71,10 @@ module Codex32
   # Convert bech32 string to array.
   # @param [String] bech32_str bech32 string.
   # @return [Array(Integer)] array of bech32 data.
-  # @raise ArgumentError
   def bech32_to_array(bech32_str)
     bech32_str.downcase.each_char.map do |c|
       i = CHARSET.index(c)
-      raise ArgumentError, "#{c} is an invalid bech32 character." if i.nil?
+      raise Errors::InvalidBech32Character if i.nil?
       i
     end
   end
@@ -91,27 +85,18 @@ module Codex32
   # @return [Codex32::Share] Recovery secret.
   def generate_share(shares, share_index)
     raise ArgumentError, "shares must be array." unless shares.is_a?(Array)
-    unless shares.map(&:id).uniq.length == 1
-      raise ArgumentError, "Share ids does not match."
-    end
+    raise IdentifierMismatch unless shares.map(&:id).uniq.length == 1
     threshold = shares.map(&:threshold).uniq
     threshold.delete(0)
-    unless threshold.length == 1
-      raise ArgumentError, "Share threshold does not match."
-    end
+    raise Errors::ThresholdMismatch unless threshold.length == 1
     index = CHARSET.index(share_index.downcase)
-    raise ArgumentError, "Invalid share index specified." if index.nil?
+    raise Errors::InvalidBech32Character if index.nil?
     indices = shares.map(&:index).uniq
     unless indices.length == shares.length
       raise ArgumentError, "Share index duplicate."
     end
-    if indices.first == index
-      raise ArgumentError,
-            "The index of the share to be generated is included in the existing share."
-    end
-    if shares.length < shares[0].threshold
-      raise ArgumentError, "The number of shares does not meet the threshold."
-    end
+    raise Errors::DuplicateShareIndex if indices.first == index
+    raise Errors::InsufficientShares if shares.length < shares[0].threshold
 
     data =
       shares.map do |share|
@@ -131,7 +116,6 @@ module Codex32
   # Convert array to bech32 string.
   # @param [Array(Integer)] data An array.
   # @return [String] bech32 string.
-  # @raise ArgumentError
   def array_to_bech32(data)
     data.map { |d| CHARSET[d] }.join
   end
