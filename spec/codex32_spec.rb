@@ -27,10 +27,15 @@ RSpec.describe Codex32 do
         described_class.parse(
           "MS12NAMECACDEFGHJKLMNPQRSTUVWXYZ023FTR2GDZMPY6PN"
         )
-      secret = described_class.recover_secret([share1, share2])
+      secret =
+        described_class.generate_share([share1, share2], Codex32::Secret::INDEX)
       expect(secret.data).to eq("d1808e096b35b209ca12132b264662a5")
       expect(secret.to_s).to eq(
         "MS12NAMES6XQGUZTTXKEQNJSJZV4JV3NZ5K3KWGSPHUH6EVW".downcase
+      )
+      share3 = described_class.generate_share([share1, share2], "d")
+      expect(share3.to_s).to eq(
+        "MS12NAMEDLL4F8JLH4E5VDVULDLFXU2JHDNLSM97XVENRXEG".downcase
       )
     end
   end

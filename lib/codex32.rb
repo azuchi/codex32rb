@@ -72,8 +72,9 @@ module Codex32
 
   # Recover secret using +shares+.
   # @param [Array(Codex32::Share)] shares Array of share.
+  # @param [String] share_index A share index.
   # @return [Codex32::Share] Recovery secret.
-  def recover_secret(shares)
+  def generate_share(shares, share_index)
     raise ArgumentError, "shares must be array." unless shares.is_a?(Array)
     unless shares.map(&:id).uniq.length == 1
       raise ArgumentError, "Share ids does not match."
@@ -81,8 +82,15 @@ module Codex32
     unless shares.map(&:threshold).uniq.length == 1
       raise ArgumentError, "Share threshold does not match."
     end
-    unless shares.map(&:index).uniq.length == shares.length
+    index = CHARSET.index(share_index.downcase)
+    raise ArgumentError, "Invalid share index specified." if index.nil?
+    indices = shares.map(&:index).uniq
+    unless indices.length == shares.length
       raise ArgumentError, "Share index duplicate."
+    end
+    if indices.first == index
+      raise ArgumentError,
+            "The index of the share to be generated is included in the existing share."
     end
     if shares.length < shares[0].threshold
       raise ArgumentError, "The number of shares does not meet the threshold."
@@ -94,7 +102,7 @@ module Codex32
           share.threshold.to_s + share.id + share.index + share.payload
         )
       end
-    result = interpolate(data)
+    result = interpolate_at(data, index)
     Share.new(
       shares.first.id,
       shares.first.threshold,
@@ -155,9 +163,14 @@ module Codex32
     ret
   end
 
-  def interpolate(data)
+  # Interpolate a set of shares to derive a share at a specific index.
+  # @param [Array(Integer)] data A set of shares.
+  # Each share is an array of the following data transformed in a bech32 table:
+  # threshold + id + index + payload.
+  # @param [Integer] x index value.
+  def interpolate_at(data, x)
     indices = data.map { |d| d[5] }
-    w = bech32_lagrange(indices, 16)
+    w = bech32_lagrange(indices, x)
     data.first.length.times.map do |i|
       n = 0
       data.length.times { |j| n ^= bech32_mul(w[j], data[j][i]) }
