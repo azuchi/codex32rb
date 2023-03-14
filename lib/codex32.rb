@@ -20,6 +20,7 @@ module Codex32
                 22, 18, 17, 23, 2, 25, 16, 19, 3, 21, 14, 30, 13, 7, 27, 15].freeze
 
   MS32_CONST = 0x10ce0795c2fd1e62a
+  MS32_LONG_CONST = 0x43381e570bf4798ab26
 
   SECRET_INDEX = "s"
 
@@ -45,6 +46,28 @@ module Codex32
     share_index = remain[5]
     payload_end = remain.length - 13
     payload = remain[6...payload_end].join
+    Share.new(id, threshold, share_index, payload)
+  end
+
+  # Create codex32 string.
+  # @param [String] seed Secret with hex format.
+  # @param [Integer] threshold Threshold value.
+  # @param [String] id Identifier.
+  # @param [String] share_index Index of share.
+  # @return [Codex32::Share]
+  def from(seed:, id:, share_index:, threshold: 0)
+    unless threshold.is_a?(Integer)
+      raise ArgumentError, "threshold must be integer."
+    end
+    raise ArgumentError, "id must be 4 characters." unless id.length == 4
+    if CHARSET.index(share_index).nil?
+      raise ArgumentError, "Invalid share_index specified."
+    end
+
+    payload =
+      array_to_bech32(
+        convert_bits([seed].pack("H*").unpack("C*"), 8, 5, padding: true)
+      )
     Share.new(id, threshold, share_index, payload)
   end
 
@@ -130,6 +153,25 @@ module Codex32
     residue
   end
 
+  # @param [Array(Integer)] data
+  # @return [Array(Integer)]
+  def long_polymod(data)
+    generators = [
+      0x3d59d273535ea62d897,
+      0x7a9becb6361c6c51507,
+      0x543f9b7e6c38d8a2a0e,
+      0x0c577eaeccf1990d13c,
+      0x1887f74f8dc71b10651
+    ]
+    residue = 0x23181b3
+    data.each do |d|
+      b = residue >> 70
+      residue = (residue & 0x3fffffffffffffffff) << 5 ^ d
+      5.times { |i| residue ^= ((b >> i) & 1).zero? ? 0 : generators[i] }
+    end
+    residue
+  end
+
   # Convert a +data+ where each byte is encoding +from+ bits to a byte slice where each byte is encoding +to+ bits.
   # @param [Array] data
   # @param [Integer] from
@@ -174,7 +216,13 @@ module Codex32
   # @param [Array(Integer)] data A part as a list of integers representing the characters converted.
   # @return [Boolean]
   def valid_checksum?(data)
-    polymod(data) == MS32_CONST
+    if data.length <= 93
+      polymod(data) == MS32_CONST
+    elsif data.length >= 96
+      long_polymod(data) == MS32_LONG_CONST
+    else
+      false
+    end
   end
 
   def bech32_lagrange(data, x)

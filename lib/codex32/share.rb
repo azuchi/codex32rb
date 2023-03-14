@@ -28,6 +28,7 @@ module Codex32
     # @return [String]
     def checksum
       data = bech32_to_array(content)
+      return create_long_checksum(data) if data.length > 80
       poly_value = polymod(data + [0] * 13) ^ MS32_CONST
       result = 13.times.map { |i| (poly_value >> 5 * (12 - i)) & 31 }
       array_to_bech32(result)
@@ -51,6 +52,12 @@ module Codex32
 
     def content
       threshold.to_s + id + index + payload
+    end
+
+    def create_long_checksum(data)
+      poly_value = long_polymod(data + [0] * 15) ^ MS32_LONG_CONST
+      result = 15.times.map { |i| (poly_value >> 5 * (14 - i)) & 31 }
+      array_to_bech32(result)
     end
   end
 end
