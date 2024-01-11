@@ -9,7 +9,7 @@ Gem::Specification.new do |spec|
   spec.email = ["techmedia.think@gmail.com"]
 
   spec.summary = "Ruby implementation of codex32"
-  spec.description = spec.description 
+  spec.description = spec.summary
   spec.homepage = "https://github.com/azuchi/codex32rb"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 2.7.0"
