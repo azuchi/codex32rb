@@ -22,7 +22,7 @@ module Codex32
       @index = index.downcase
       @threshold = threshold
 
-      if threshold.zero? && index != SECRET_INDEX
+      if threshold.zero? && @index != SECRET_INDEX
         raise Codex32::Errors::InvalidShareIndex
       end
 

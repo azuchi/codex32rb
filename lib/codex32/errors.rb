@@ -45,5 +45,11 @@ module Codex32
 
     class InvalidCase < Error
     end
+
+    class InvalidSeed < Error
+    end
+
+    class PayloadLengthMismatch < Error
+    end
   end
 end

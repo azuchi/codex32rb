@@ -22,6 +22,16 @@ module Codex32
 
   SECRET_INDEX = "s"
 
+  # Minimum/maximum length of the data part (the part after the separator).
+  # 45 = threshold(1) + id(4) + index(1) + payload(26) + checksum(13)
+  # 124 = 127 (maximum length of a codex32 string) - "ms1"
+  MIN_DATA_LENGTH = 45
+  MAX_DATA_LENGTH = 124
+
+  # Minimum/maximum byte length of a master seed (128 bits to 512 bits).
+  MIN_SEED_LENGTH = 16
+  MAX_SEED_LENGTH = 64
+
   module_function
 
   # Parse codex32 string.
@@ -31,10 +41,14 @@ module Codex32
     if codex32.downcase != codex32 && codex32.upcase != codex32
       raise Errors::InvalidCase
     end
-    hrp, remain = codex32.downcase.split(SEPARATOR)
-    raise Errors::InvalidHRP unless hrp.downcase == HRP
-    raise Errors::InvalidLength if codex32.length < 48 || codex32.length > 127
-    raise Errors::SeparatorNotFound if remain.nil?
+    lower = codex32.downcase
+    # The separator is the *last* occurrence of SEPARATOR, everything before it is the HRP.
+    pos = lower.rindex(SEPARATOR)
+    raise Errors::InvalidHRP unless pos && lower[0...pos] == HRP
+    remain = lower[(pos + 1)..]
+    if remain.length < MIN_DATA_LENGTH || remain.length > MAX_DATA_LENGTH
+      raise Errors::InvalidLength
+    end
     unless valid_checksum?(bech32_to_array(remain))
       raise Errors::InvalidChecksum
     end
@@ -60,12 +74,32 @@ module Codex32
   def from(seed:, id:, share_index:, threshold: 0)
     raise Errors::InvalidThreshold unless threshold.is_a?(Integer)
     raise Errors::InvalidIdentifier unless id.length == 4
-    raise Errors::InvalidBech32Character if CHARSET.index(share_index).nil?
+    unless id.downcase.each_char.all? { |c| CHARSET.include?(c) }
+      raise Errors::InvalidBech32Character
+    end
+    if CHARSET.index(share_index.downcase).nil?
+      raise Errors::InvalidBech32Character
+    end
+    validate_seed!(seed)
     payload =
       array_to_bech32(
         convert_bits([seed].pack("H*").unpack("C*"), 8, 5, padding: true)
       )
     Share.new(id, threshold, share_index, payload)
+  end
+
+  # Validate that +seed+ is a hex string which encodes a master seed of
+  # 128 to 512 bits.
+  # @param [String] seed Secret with hex format.
+  # @raise [Codex32::Errors::InvalidSeed]
+  def validate_seed!(seed)
+    unless seed.is_a?(String) && seed.match?(/\A\h*\z/) && seed.length.even?
+      raise Errors::InvalidSeed, "seed must be an even-length hex string."
+    end
+    byte_length = seed.length / 2
+    return if byte_length.between?(MIN_SEED_LENGTH, MAX_SEED_LENGTH)
+    raise Errors::InvalidSeed,
+          "seed must be #{MIN_SEED_LENGTH} to #{MAX_SEED_LENGTH} bytes."
   end
 
   # Convert bech32 string to array.
@@ -85,7 +119,8 @@ module Codex32
   # @return [Codex32::Share] Recovery secret.
   def generate_share(shares, share_index)
     raise ArgumentError, "shares must be array." unless shares.is_a?(Array)
-    raise IdentifierMismatch unless shares.map(&:id).uniq.length == 1
+    raise ArgumentError, "shares must not be empty." if shares.empty?
+    raise Errors::IdentifierMismatch unless shares.map(&:id).uniq.length == 1
     threshold = shares.map(&:threshold).uniq
     threshold.delete(0)
     raise Errors::ThresholdMismatch unless threshold.length == 1
@@ -95,8 +130,15 @@ module Codex32
     unless indices.length == shares.length
       raise ArgumentError, "Share index duplicate."
     end
-    raise Errors::DuplicateShareIndex if indices.first == index
-    raise Errors::InsufficientShares if shares.length < shares[0].threshold
+    # The interpolation collapses to all zeros if +index+ collides with any
+    # existing share index, so every index must be checked, not just the first.
+    if indices.any? { |i| CHARSET.index(i) == index }
+      raise Errors::DuplicateShareIndex
+    end
+    raise Errors::InsufficientShares if shares.length < threshold.first
+    unless shares.map { |s| s.payload.length }.uniq.length == 1
+      raise Errors::PayloadLengthMismatch
+    end
 
     data =
       shares.map do |share|

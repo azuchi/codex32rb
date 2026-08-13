@@ -273,4 +273,131 @@ RSpec.describe Codex32 do
       end
     end
   end
+
+  describe "#generate_share" do
+    let(:name_shares) do
+      %w[
+        MS12NAMEA320ZYXWVUTSRQPNMLKJHGFEDCAXRPP870HKKQRM
+        MS12NAMECACDEFGHJKLMNPQRSTUVWXYZ023FTR2GDZMPY6PN
+      ].map { |s| described_class.parse(s) }
+    end
+    let(:cash_shares) do
+      %w[
+        ms13cashsllhdmn9m42vcsamx24zrxgs3qqjzqud4m0d6nln
+        ms13casha320zyxwvutsrqpnmlkjhgfedca2a8d0zehn8a0t
+        ms13cashcacdefghjklmnpqrstuvwxyz023949xq35my48dr
+      ].map { |s| described_class.parse(s) }
+    end
+
+    context "when the requested index collides with an existing share" do
+      it "raises DuplicateShareIndex instead of returning an all-zero share" do
+        error = Codex32::Errors::DuplicateShareIndex
+        # The index of the first share, of a later share, and an upper case one.
+        %w[a c A].each do |i|
+          expect { described_class.generate_share(name_shares, i) }.to(
+            raise_error(error)
+          )
+        end
+        # Recovering the secret while the secret share itself is supplied.
+        expect { described_class.generate_share(cash_shares, "s") }.to(
+          raise_error(error)
+        )
+        # A fresh index still works.
+        expect(described_class.generate_share(name_shares, "d").to_s).to eq(
+          "MS12NAMEDLL4F8JLH4E5VDVULDLFXU2JHDNLSM97XVENRXEG".downcase
+        )
+      end
+    end
+
+    context "when the identifiers do not match" do
+      it "raises a rescuable Codex32 error" do
+        shares = [name_shares.first, cash_shares.first]
+        expect { described_class.generate_share(shares, "d") }.to raise_error(
+          Codex32::Errors::IdentifierMismatch
+        )
+        expect { described_class.generate_share(shares, "d") }.to raise_error(
+          Codex32::Errors::Error
+        )
+      end
+    end
+
+    context "when fewer shares than the threshold are given" do
+      it "raises InsufficientShares even if the first share has threshold 0" do
+        zero = Codex32::Share.new("cash", 0, "s", cash_shares[1].payload)
+        shares = [zero, cash_shares[2]]
+        expect { described_class.generate_share(shares, "d") }.to raise_error(
+          Codex32::Errors::InsufficientShares
+        )
+      end
+    end
+
+    context "when payload lengths differ" do
+      it "raises PayloadLengthMismatch regardless of the share order" do
+        error = Codex32::Errors::PayloadLengthMismatch
+        short = Codex32::Share.new("cash", 2, "a", "q" * 26)
+        long = Codex32::Share.new("cash", 2, "c", "p" * 52)
+        expect { described_class.generate_share([short, long], "d") }.to(
+          raise_error(error)
+        )
+        expect { described_class.generate_share([long, short], "d") }.to(
+          raise_error(error)
+        )
+      end
+    end
+
+    context "when shares is empty" do
+      it do
+        expect { described_class.generate_share([], "d") }.to raise_error(
+          ArgumentError
+        )
+      end
+    end
+  end
+
+  describe "#parse with a trailing separator" do
+    it "rejects data appended after another separator" do
+      valid = "ms10testsxxxxxxxxxxxxxxxxxxxxxxxxxx4nzvca9cmczlw"
+      expect { described_class.parse("#{valid}1deadbeef") }.to raise_error(
+        Codex32::Errors::InvalidHRP
+      )
+      # Padding a too-short data part up to the minimum overall length.
+      padded = "ms10tests40xsggfh7z73p7l8a1xxxxxxxxxxxxxxxxxxxxx"
+      expect { described_class.parse(padded) }.to raise_error(
+        Codex32::Errors::InvalidHRP
+      )
+    end
+  end
+
+  describe "#from" do
+    let(:seed) { "ff" * 16 }
+
+    def build(seed, id: "test", index: Codex32::SECRET_INDEX)
+      described_class.from(seed: seed, id: id, share_index: index, threshold: 0)
+    end
+
+    context "when the seed is not a valid master seed" do
+      it "raises InvalidSeed" do
+        # Non hexadecimal, an odd length, and out of the 128..512 bit range.
+        ["z" * 32, "3" * 31, "", "abcd", "ab" * 128].each do |s|
+          expect { build(s) }.to raise_error(Codex32::Errors::InvalidSeed)
+        end
+      end
+    end
+
+    context "when the identifier contains a non bech32 character" do
+      it do
+        expect { build(seed, id: "b1io") }.to raise_error(
+          Codex32::Errors::InvalidBech32Character
+        )
+      end
+    end
+
+    context "when the share index is upper case" do
+      it "is accepted and normalized" do
+        share = build(seed, id: "TEST", index: "S")
+        expect(share.index).to eq("s")
+        expect(described_class.parse(share.to_s).data).to eq(seed)
+      end
+    end
+  end
 end
