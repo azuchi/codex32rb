@@ -122,7 +122,9 @@ module Codex32
     random_shares =
       indexes
         .take(threshold - 1)
-        .map { |i| Share.new(id, threshold, i, random_payload(seed.length / 2)) }
+        .map do |i|
+          Share.new(id, threshold, i, random_payload(seed.length / 2))
+        end
     known = [secret] + random_shares
     shares =
       indexes.map do |i|

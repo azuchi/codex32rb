@@ -9,6 +9,13 @@
 - A "Security considerations" section in the README, covering the lack of
   constant time operations and of memory wiping.
 
+### Removed
+
+- `Codex32::Errors::SeparatorNotFound`. It was never raised: a string which
+  starts with `ms` but has no separator is reported as
+  `Codex32::Errors::InvalidHRP`, the same as the invalid test vectors of BIP-93
+  which mix a missing prefix and a missing separator.
+
 ### Security
 
 - `Codex32.generate_share` no longer returns an all-zero share when the requested

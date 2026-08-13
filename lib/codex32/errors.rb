@@ -22,9 +22,6 @@ module Codex32
     class InvalidHRP < Error
     end
 
-    class SeparatorNotFound < Error
-    end
-
     class InvalidIdentifier < Error
     end
 
