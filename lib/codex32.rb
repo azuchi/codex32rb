@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "securerandom"
+
 require_relative "codex32/version"
 require_relative "codex32/errors"
 require_relative "codex32/share"
@@ -86,6 +88,71 @@ module Codex32
         convert_bits([seed].pack("H*").unpack("C*"), 8, 5, padding: true)
       )
     Share.new(id, threshold, share_index, payload)
+  end
+
+  # Split +seed+ into +share_indexes.length+ shares, any +threshold+ of which
+  # recover the seed. The shares are derived from random values obtained from
+  # +SecureRandom+.
+  # @param [String] seed Secret with hex format.
+  # @param [String] id Identifier.
+  # @param [Integer] threshold Threshold value. Must be 2 to 9.
+  # @param [Array(String)] share_indexes Indexes of the shares to be created.
+  # @return [Array(Codex32::Share)] Shares in the order of +share_indexes+.
+  def split(seed:, id:, threshold:, share_indexes:)
+    unless threshold.is_a?(Integer) && threshold > 1 && threshold < 10
+      raise Errors::InvalidThreshold
+    end
+    unless share_indexes.is_a?(Array)
+      raise ArgumentError, "share_indexes must be array."
+    end
+    indexes = share_indexes.map(&:downcase)
+    if indexes.any? { |i| CHARSET.index(i).nil? }
+      raise Errors::InvalidBech32Character
+    end
+    unless indexes.uniq.length == indexes.length
+      raise ArgumentError, "Share index duplicate."
+    end
+    raise Errors::InvalidShareIndex if indexes.include?(SECRET_INDEX)
+    raise Errors::InsufficientShares if indexes.length < threshold
+
+    secret =
+      from(seed: seed, id: id, share_index: SECRET_INDEX, threshold: threshold)
+    # Any +threshold+ shares define the polynomial, so the secret share and
+    # threshold - 1 random shares are enough to derive the remaining ones.
+    random_shares =
+      indexes
+        .take(threshold - 1)
+        .map { |i| Share.new(id, threshold, i, random_payload(seed.length / 2)) }
+    known = [secret] + random_shares
+    shares =
+      indexes.map do |i|
+        random_shares.find { |s| s.index == i } || generate_share(known, i)
+      end
+    verify_shares!(shares.take(threshold), secret)
+    shares
+  end
+
+  # Generate a random payload which encodes +byte_length+ bytes.
+  # @param [Integer] byte_length Byte length of the payload.
+  # @return [String] bech32 string.
+  def random_payload(byte_length)
+    array_to_bech32(
+      convert_bits(
+        SecureRandom.random_bytes(byte_length).unpack("C*"),
+        8,
+        5,
+        padding: true
+      )
+    )
+  end
+
+  # Check that +shares+ actually recover +secret+.
+  # @param [Array(Codex32::Share)] shares Array of share.
+  # @param [Codex32::Share] secret Expected secret.
+  # @raise [Codex32::Errors::Error]
+  def verify_shares!(shares, secret)
+    return if generate_share(shares, SECRET_INDEX).to_s == secret.to_s
+    raise Errors::Error, "Failed to verify the generated shares."
   end
 
   # Validate that +seed+ is a hex string which encodes a master seed of
@@ -213,7 +280,9 @@ module Codex32
     maxv = (1 << to) - 1
     max_acc = (1 << (from + to - 1)) - 1
     data.each do |v|
-      return nil if v.negative? || (v >> from) != 0
+      if v.negative? || (v >> from) != 0
+        raise ArgumentError, "#{v} does not fit in #{from} bits."
+      end
       acc = ((acc << from) | v) & max_acc
       bits += from
       while bits >= to

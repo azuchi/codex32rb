@@ -1,5 +1,14 @@
 ## [Unreleased]
 
+### Added
+
+- `Codex32.split` splits a master seed into shares using `SecureRandom` and
+  verifies that the generated shares recover the seed. Creating shares from
+  anything but cryptographically secure randomness leaks the master seed, and
+  the library previously offered no way to do it.
+- A "Security considerations" section in the README, covering the lack of
+  constant time operations and of memory wiping.
+
 ### Security
 
 - `Codex32.generate_share` no longer returns an all-zero share when the requested
@@ -23,6 +32,9 @@
   lengths, and raises `Codex32::Errors::IdentifierMismatch` (previously a
   `NameError` was raised because of a missing namespace).
 - `Codex32::Share#initialize` accepts an upper case `S` as the secret index.
+- `Codex32.convert_bits` raises `ArgumentError` for a value which does not fit
+  in the source bit width instead of returning `nil`, which the callers did not
+  check for.
 
 ## [0.1.0] - 2023-03-12
 

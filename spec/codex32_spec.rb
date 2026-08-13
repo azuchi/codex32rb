@@ -400,4 +400,70 @@ RSpec.describe Codex32 do
       end
     end
   end
+
+  describe "#split" do
+    let(:seed) { "ffeeddccbbaa99887766554433221100" }
+
+    def split(indexes, threshold: 3, seed: "ffeeddccbbaa99887766554433221100")
+      described_class.split(
+        seed: seed,
+        id: "test",
+        threshold: threshold,
+        share_indexes: indexes
+      )
+    end
+
+    it "creates shares which recover the seed with any threshold subset" do
+      shares = split(%w[a c d e f])
+      expect(shares.map(&:index)).to eq(%w[a c d e f])
+      expect(shares.map(&:threshold).uniq).to eq([3])
+      shares.combination(3) do |c|
+        secret = described_class.generate_share(c, Codex32::SECRET_INDEX)
+        expect(secret.data).to eq(seed)
+      end
+      # Every share is a valid codex32 string.
+      shares.each do |share|
+        expect(described_class.parse(share.to_s).payload).to eq(share.payload)
+      end
+    end
+
+    it "supports a 512 bit seed" do
+      long = "ab" * 64
+      shares = split(%w[a c], threshold: 2, seed: long)
+      expect(shares.first.to_s.length).to eq(127)
+      secret = described_class.generate_share(shares, Codex32::SECRET_INDEX)
+      expect(secret.data).to eq(long)
+    end
+
+    it "uses fresh randomness for each call" do
+      first = split(%w[a c], threshold: 2).map(&:to_s)
+      second = split(%w[a c], threshold: 2).map(&:to_s)
+      expect(first).not_to eq(second)
+    end
+
+    context "when the arguments are invalid" do
+      it do
+        [0, 1, 10, "3"].each do |t|
+          expect { split(%w[a c d], threshold: t) }.to raise_error(
+            Codex32::Errors::InvalidThreshold
+          )
+        end
+        # Fewer shares than the threshold.
+        expect { split(%w[a c]) }.to raise_error(
+          Codex32::Errors::InsufficientShares
+        )
+        # The secret index can not be used as a share index.
+        expect { split(%w[a c s]) }.to raise_error(
+          Codex32::Errors::InvalidShareIndex
+        )
+        expect { split(%w[a c c]) }.to raise_error(ArgumentError)
+        expect { split(%w[a c b]) }.to raise_error(
+          Codex32::Errors::InvalidBech32Character
+        )
+        expect { split(%w[a c d], seed: "zz") }.to raise_error(
+          Codex32::Errors::InvalidSeed
+        )
+      end
+    end
+  end
 end
